@@ -33,6 +33,12 @@ button:active{background:#0ff;color:#000}
 .refresh-bar{display:flex;justify-content:flex-end;margin-bottom:6px}
 .btn-refresh{font-size:11px;padding:4px 10px;color:#ff0;border-color:#ff0}
 .badge{display:inline-block;background:#333;color:#aaa;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:6px}
+.profit-box{border:1px solid #222;padding:12px;margin-top:12px;border-radius:4px;background:#111;text-align:center}
+.profit-label{color:#888;font-size:12px;margin-bottom:4px}
+.profit-value{font-weight:bold;font-size:22px}
+.profit-positive{color:#0f0}
+.profit-negative{color:#f44}
+.profit-zero{color:#888}
 </style>
 </head>
 <body>
@@ -79,6 +85,12 @@ button:active{background:#0ff;color:#000}
 
   <div class="actions">
     <button onclick="showAddForm()">+ Add Transaction</button>
+  </div>
+
+  <!-- Profit Summary -->
+  <div class="profit-box">
+    <div class="profit-label">Total Profit So Far</div>
+    <div id="vProfit" class="profit-value profit-zero">₹ 0.00</div>
   </div>
 </div>
 
@@ -185,6 +197,7 @@ async function hardRefresh() {
 function renderAll() {
   renderTable();
   computeTargets();
+  renderProfit();
 }
 
 function renderTable() {
@@ -232,6 +245,16 @@ function fmtDate(d) {
   return d;
 }
 
+// ========== PROFIT DISPLAY ==========
+function renderProfit() {
+  const el = document.getElementById('vProfit');
+  const profit = gainProfitRs;
+  const sign = profit >= 0 ? '+' : '';
+  el.textContent = `₹ ${sign}${profit.toFixed(2)}`;
+  el.className = 'profit-value ' +
+    (profit > 0 ? 'profit-positive' : profit < 0 ? 'profit-negative' : 'profit-zero');
+}
+
 // ========== TRADING LOGIC: BT, BQ, ST, SQ ==========
 function computeTargets() {
   // Hanging buys = transactions where sell_date is null/empty
@@ -245,8 +268,6 @@ function computeTargets() {
 
   if (hanging.length > 0) {
     // === BUY TARGET ===
-    // Buy when price drops 1.9% from the last hanging buy's buy_price
-    // Sort hanging by buy_date desc to get latest
     const sortedHanging = [...hanging].sort((a, b) => (b.buy_date || '').localeCompare(a.buy_date || '') || b.id - a.id);
     const lastHanging = sortedHanging[0];
     const lastHangPrice = parseFloat(lastHanging.buy_price);
@@ -263,8 +284,6 @@ function computeTargets() {
     }
 
     // === SELL TARGET ===
-    // For each hanging buy, determine sell target
-    // Same day → 2.7%, next days → 2.6%
     const today = new Date().toISOString().slice(0, 10);
     let lowestST = Infinity;
     let sellQty = 0;
@@ -285,7 +304,6 @@ function computeTargets() {
       SQ = sellQty;
     }
   } else if (allBuys.length > 0) {
-    // No hanging buys — buy when price drops 1.3% from last buy price
     const sortedAll = [...allBuys].sort((a, b) => (b.buy_date || '').localeCompare(a.buy_date || '') || b.id - a.id);
     const lastBuy = sortedAll[0];
     const lbp = parseFloat(lastBuy.buy_price);
@@ -299,10 +317,9 @@ function computeTargets() {
     ST = '—';
     SQ = '—';
   } else {
-    // No transactions at all — first buy
     BT = 'First buy at market';
     const amount = INITIAL_AMOUNT + X;
-    BQ = '~' + Math.floor(amount / 200); // rough estimate
+    BQ = '~' + Math.floor(amount / 200);
   }
 
   document.getElementById('vBT').textContent = BT;
